@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
 import com.subrat.moviecatalogservice.entity.MovieCatalogEntity;
 import com.subrat.moviecatalogservice.model.MovieEntity;
 import com.subrat.moviecatalogservice.model.RatingEntity;
@@ -25,9 +26,11 @@ public class MovieCatalogController {
 	@Autowired
 	private WebClient.Builder builder;
 	@RequestMapping("/{userId}")
+	@HystrixCommand(fallbackMethod = "fallBackCatalog")
 	public List<MovieCatalogEntity> getCatalog(@PathVariable("userId")  String userId){
 		//pass userid and get all the ratings.
 		UserRating ratings = restTemplate.getForObject("http://movie-rating-service/ratingdata/users/sd491w",UserRating.class );
+		System.out.println(ratings.getUserRating());
 		//for  each movie id, call movie info service and get details.
 		return ratings.getUserRating().stream().map(rating -> {
 			MovieEntity entity = restTemplate.getForObject("http://MOVIE-INFO-SERVICE/movies/movieById?movieId="+rating.getMovieId(), MovieEntity.class);
@@ -38,11 +41,12 @@ public class MovieCatalogController {
 			
 	}
 	@RequestMapping("/web/{userId}")
+	@HystrixCommand(fallbackMethod = "fallBackCatalog")
 	public List<MovieCatalogEntity> getCatalogByWebClient(@PathVariable("userId")  String userId){
 		//get all rated movie ids
 		List<RatingEntity> ratings = Arrays.asList(
-				                           new RatingEntity("1234", 4),
-			                               new RatingEntity("5678", 5)
+				                           new RatingEntity("100", 4),
+			                               new RatingEntity("101", 5)
 				                     );
 		//for  each movie id, call movie info service and get details.
 		return ratings.stream().map(rating -> {
@@ -56,6 +60,10 @@ public class MovieCatalogController {
 			//put them all together.	
 		      return new MovieCatalogEntity(entity.getMovieId(),entity.getName(),rating.getRating());
 		    }).collect(Collectors.toList());
+	}
+
+	public List<MovieCatalogEntity> fallBackCatalog(@PathVariable("userId") String userId) {
+		return Arrays.asList(new MovieCatalogEntity("Service Down","",0));
 	}
 
 }
