@@ -1,7 +1,6 @@
-package com.subrat.moviecatalogservice.cotroller;
+package com.subrat.moviecatalogservice.controller;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -17,28 +16,27 @@ import com.subrat.moviecatalogservice.entity.MovieCatalogEntity;
 import com.subrat.moviecatalogservice.model.MovieEntity;
 import com.subrat.moviecatalogservice.model.RatingEntity;
 import com.subrat.moviecatalogservice.model.UserRating;
+import com.subrat.moviecatalogservice.service.MovieInfoService;
+import com.subrat.moviecatalogservice.service.MovieRatingService;
 
 @RestController
 @RequestMapping("/catalog")
 public class MovieCatalogController {
 	@Autowired
-	private RestTemplate restTemplate;
-	@Autowired
 	private WebClient.Builder builder;
+	@Autowired
+	private MovieRatingService movieRatingService;
+	@Autowired
+	private MovieInfoService movieInfoService;
+
 	@RequestMapping("/{userId}")
-	@HystrixCommand(fallbackMethod = "fallBackCatalog")
 	public List<MovieCatalogEntity> getCatalog(@PathVariable("userId")  String userId){
 		//pass userid and get all the ratings.
-		UserRating ratings = restTemplate.getForObject("http://movie-rating-service/ratingdata/users/sd491w",UserRating.class );
-		System.out.println(ratings.getUserRating());
+		UserRating ratings = movieRatingService.getRatings(userId);
 		//for  each movie id, call movie info service and get details.
-		return ratings.getUserRating().stream().map(rating -> {
-			MovieEntity entity = restTemplate.getForObject("http://MOVIE-INFO-SERVICE/movies/movieById?movieId="+rating.getMovieId(), MovieEntity.class);
-			System.out.println("entity====>"+entity);
-			//put them all together.	
-		      return new MovieCatalogEntity(entity.getMovieId(),entity.getName(),rating.getRating());
-		    }).collect(Collectors.toList());
-			
+		return ratings.getUserRating().stream()
+		.map(rating -> movieInfoService.getMovieInfo(rating))
+		.collect(Collectors.toList());
 	}
 	@RequestMapping("/web/{userId}")
 	@HystrixCommand(fallbackMethod = "fallBackCatalog")
@@ -56,7 +54,6 @@ public class MovieCatalogController {
 			.retrieve()
 			.bodyToMono(MovieEntity.class)
 			.block();
-			System.out.println("entity====>"+entity);
 			//put them all together.	
 		      return new MovieCatalogEntity(entity.getMovieId(),entity.getName(),rating.getRating());
 		    }).collect(Collectors.toList());
